@@ -1,0 +1,23 @@
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "https://*.vercel.app",
+      "https://your-production-domain.com"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]
