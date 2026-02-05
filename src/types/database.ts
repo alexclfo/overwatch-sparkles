@@ -26,7 +26,8 @@ export interface Submission {
   suspected_persona_name: string | null;
   suspected_avatar_url: string | null;
   spectate_player: string | null;
-  start_tick_or_round: string | null;
+  start_tick_or_round: string | null; // deprecated
+  must_check_rounds: number[] | null;
   suspicion_reason: string | null;
   status: SubmissionStatus;
   verdict: SubmissionVerdict | null;
@@ -36,6 +37,7 @@ export interface Submission {
   inventory_value_currency: string | null;
   inventory_value_updated_at: string | null;
   inventory_value_error: string | null;
+  inventory_top_items: { name: string; price_cents: number; icon_url: string }[] | null;
   worker_status: WorkerStatus | null;
 }
 
@@ -52,6 +54,6 @@ export interface SubmissionFormData {
   match_date?: string;
   suspected_profile_url: string;
   spectate_player: string;
-  start_tick_or_round?: string;
+  must_check_rounds?: number[];
   suspicion_reason: string;
 }

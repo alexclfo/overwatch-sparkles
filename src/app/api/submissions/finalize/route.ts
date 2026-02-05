@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveSteamProfileUrl, getPlayerSummaries } from "@/lib/steam/api";
-import { fetchInventoryValue } from "@/lib/steam/inventory";
+import { finalizeSubmissionSchema } from "@/lib/validations";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +13,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    
+    // Validate request body with Zod
+    const parseResult = finalizeSubmissionSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: `Validation failed: ${parseResult.error.message}` },
+        { status: 400 }
+      );
+    }
+
     const {
       submissionId,
       objectKey,
@@ -25,16 +35,9 @@ export async function POST(request: NextRequest) {
       suspected_steamid64: providedSteamId64,
       suspected_profile_url,
       spectate_player,
-      start_tick_or_round,
+      must_check_rounds,
       suspicion_reason,
-    } = body;
-
-    if (!submissionId || !objectKey) {
-      return NextResponse.json(
-        { error: "Missing submissionId or objectKey" },
-        { status: 400 }
-      );
-    }
+    } = parseResult.data;
 
     // Resolve suspect SteamID64 (from demo extraction or manual URL)
     let suspected_steamid64: string | null = providedSteamId64 || null;
@@ -53,37 +56,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // INSERT new submission (not update - presign no longer creates rows)
+    // Build insert data - must_check_rounds may not exist in DB yet
+    const insertData: Record<string, unknown> = {
+      id: submissionId,
+      submitter_steamid64: session.user.steamId,
+      submitter_persona_name: session.user.name,
+      submitter_avatar_url: session.user.image || null,
+      demo_object_key: objectKey,
+      demo_original_filename: filename,
+      demo_size_bytes: size,
+      demo_mime: contentType || "application/octet-stream",
+      source: source || "cs2",
+      map,
+      match_rank_or_elo,
+      suspected_profile_url: suspected_profile_url || null,
+      suspected_steamid64,
+      suspected_persona_name,
+      suspected_avatar_url,
+      spectate_player,
+      suspicion_reason,
+      status: "new",
+      worker_status: "queued",
+      submitted_at: new Date().toISOString(),
+    };
+
+    // Include must_check_rounds if provided (column now exists)
+    if (must_check_rounds?.length) {
+      insertData.must_check_rounds = must_check_rounds;
+    }
+
+    // INSERT new submission
     const { error: insertError } = await supabaseAdmin
       .from("submissions")
-      .insert({
-        id: submissionId,
-        submitter_steamid64: session.user.steamId,
-        submitter_persona_name: session.user.name,
-        submitter_avatar_url: session.user.image || null,
-        demo_object_key: objectKey,
-        demo_original_filename: filename,
-        demo_size_bytes: size,
-        demo_mime: contentType || "application/octet-stream",
-        source: source || "cs2",
-        map,
-        match_rank_or_elo,
-        suspected_profile_url: suspected_profile_url || null,
-        suspected_steamid64,
-        suspected_persona_name,
-        suspected_avatar_url,
-        spectate_player,
-        start_tick_or_round: start_tick_or_round || null,
-        suspicion_reason,
-        status: "new",
-        worker_status: "queued",
-        submitted_at: new Date().toISOString(),
-      });
+      .insert(insertData);
 
     if (insertError) {
-      console.error("Error creating submission:", insertError);
+      console.error("Error creating submission:", insertError.message, insertError.details, insertError.hint);
       return NextResponse.json(
-        { error: "Failed to create submission" },
+        { error: `Failed to create submission: ${insertError.message}` },
         { status: 500 }
       );
     }
@@ -94,11 +104,17 @@ export async function POST(request: NextRequest) {
       .delete()
       .eq("r2_key", objectKey);
 
-    // Fetch inventory value in background (no worker yet)
+    // Queue inventory job for background processing
     if (suspected_steamid64) {
-      fetchAndUpdateInventory(submissionId, suspected_steamid64).catch((err) => {
-        console.error("Failed to fetch inventory:", err);
+      await supabaseAdmin.from("inventory_jobs").insert({
+        steamid64: suspected_steamid64,
+        submission_id: submissionId,
+        status: "pending",
+        priority: 0,
       });
+      
+      // Trigger queue processor (fire and forget)
+      triggerInventoryQueue().catch(console.error);
     }
 
     return NextResponse.json({ success: true, submissionId });
@@ -111,51 +127,24 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function fetchAndUpdateInventory(submissionId: string, steamId64: string) {
+// Trigger the inventory queue processor Edge Function
+async function triggerInventoryQueue() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) return;
+  
   try {
-    const result = await fetchInventoryValue(steamId64);
-    
-    await supabaseAdmin
-      .from("submissions")
-      .update({
-        inventory_value_cents: result.value_cents,
-        inventory_value_currency: result.currency,
-        inventory_value_updated_at: new Date().toISOString(),
-        inventory_value_error: result.error || null,
-        worker_status: "complete",
-      })
-      .eq("id", submissionId);
-  } catch (error) {
-    console.error("Inventory update failed:", error);
-    await supabaseAdmin
-      .from("submissions")
-      .update({
-        inventory_value_error: "Failed to fetch inventory",
-        worker_status: "failed",
-      })
-      .eq("id", submissionId);
-  }
-}
-
-async function triggerWorker(submissionId: string) {
-  const workerUrl = process.env.RAILWAY_WORKER_URL;
-  const workerSecret = process.env.RAILWAY_WORKER_SECRET;
-
-  if (!workerUrl) {
-    console.log("RAILWAY_WORKER_URL not configured, skipping worker trigger");
-    return;
-  }
-
-  try {
-    await fetch(`${workerUrl}/process`, {
+    await fetch(`${supabaseUrl}/functions/v1/process-inventory-queue`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(workerSecret && { Authorization: `Bearer ${workerSecret}` }),
+        "Authorization": `Bearer ${supabaseKey}`,
       },
-      body: JSON.stringify({ submissionId }),
+      body: JSON.stringify({}),
     });
   } catch (error) {
-    console.error("Worker trigger failed:", error);
+    console.error("Failed to trigger inventory queue:", error);
   }
 }
+

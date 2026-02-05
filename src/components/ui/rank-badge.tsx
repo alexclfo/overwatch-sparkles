@@ -1,48 +1,48 @@
 "use client";
 
-// Cyber/Esports style rank badge with skewed parallelogram design
-// Color palette from design spec
+// CS2 Premier rank badge - Parallelogram/Skewed design with double stripes
+// Cyber/Esports aesthetic with exact CS2 color palette
 
 export const RANK_TIERS = {
   gray: { 
     min: 0, max: 4999, 
-    accent: "#9ca3af", bg: "#374151", 
-    label: "0 - 4,999", upperLabel: "4,999",
+    accent: "#9ca3af", bg: "#374151",
+    label: "0,000 - 4,999", upperLabel: "4,999",
     value: "0-4999"
   },
   lightBlue: { 
     min: 5000, max: 9999, 
-    accent: "#60a5fa", bg: "#1e3a8a", 
+    accent: "#60a5fa", bg: "#1e3a8a",
     label: "5,000 - 9,999", upperLabel: "9,999",
     value: "5000-9999"
   },
   blue: { 
     min: 10000, max: 14999, 
-    accent: "#3b82f6", bg: "#1d4ed8", 
+    accent: "#3b82f6", bg: "#1d4ed8",
     label: "10,000 - 14,999", upperLabel: "14,999",
     value: "10000-14999"
   },
   purple: { 
     min: 15000, max: 19999, 
-    accent: "#a855f7", bg: "#581c87", 
+    accent: "#a855f7", bg: "#581c87",
     label: "15,000 - 19,999", upperLabel: "19,999",
     value: "15000-19999"
   },
   pink: { 
     min: 20000, max: 24999, 
-    accent: "#e879f9", bg: "#86198f", 
+    accent: "#e879f9", bg: "#86198f",
     label: "20,000 - 24,999", upperLabel: "24,999",
     value: "20000-24999"
   },
   red: { 
     min: 25000, max: 29999, 
-    accent: "#ef4444", bg: "#7f1d1d", 
+    accent: "#ef4444", bg: "#7f1d1d",
     label: "25,000 - 29,999", upperLabel: "29,999",
     value: "25000-29999"
   },
   gold: { 
     min: 30000, max: 99999, 
-    accent: "#facc15", bg: "#713f12", 
+    accent: "#facc15", bg: "#713f12",
     label: "30,000+", upperLabel: "30,000+",
     value: "30000+"
   },
@@ -99,28 +99,42 @@ export function RankBadge({ rating, size = "md", showFaceit = false }: RankBadge
   const tier = getTierFromValue(rating);
   
   const sizeConfig = {
-    sm: { height: "h-6", text: "text-xs", stripeW: "w-0.5", gap: "gap-0.5", px: "px-2" },
-    md: { height: "h-8", text: "text-sm", stripeW: "w-1", gap: "gap-0.5", px: "px-3" },
-    lg: { height: "h-10", text: "text-base", stripeW: "w-1", gap: "gap-1", px: "px-4" },
+    sm: { height: "h-7", text: "text-xs", stripeH: "h-5", stripeW: "w-[3px]", px: "px-3", py: "py-1" },
+    md: { height: "h-9", text: "text-sm", stripeH: "h-6", stripeW: "w-1", px: "px-4", py: "py-1.5" },
+    lg: { height: "h-11", text: "text-base", stripeH: "h-7", stripeW: "w-1", px: "px-5", py: "py-2" },
   };
   
   const config = sizeConfig[size];
 
   return (
     <div 
-      className={`inline-flex items-center ${config.height} transform -skew-x-12 overflow-hidden shadow-lg`}
-      style={{ backgroundColor: tier.bg }}
+      className={`inline-flex items-center ${config.height} relative`}
+      style={{ 
+        transform: "skewX(-12deg)",
+        backgroundColor: tier.bg,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.3)`
+      }}
     >
-      {/* Double stripe accent */}
-      <div className={`flex ${config.gap} h-full py-1 pl-1`}>
-        <div className={`${config.stripeW} h-full rounded-sm`} style={{ backgroundColor: tier.accent }} />
-        <div className={`${config.stripeW} h-full rounded-sm`} style={{ backgroundColor: tier.accent }} />
+      {/* Double stripe accent on left edge */}
+      <div className="flex gap-[2px] pl-2 pr-1">
+        <div 
+          className={`${config.stripeW} ${config.stripeH} rounded-[1px]`}
+          style={{ backgroundColor: tier.accent }}
+        />
+        <div 
+          className={`${config.stripeW} ${config.stripeH} rounded-[1px]`}
+          style={{ backgroundColor: tier.accent }}
+        />
       </div>
-      
-      {/* Number - counter-skewed to be upright */}
+      {/* Counter-skew text so it's upright */}
       <span 
-        className={`${config.px} ${config.text} font-bold tabular-nums transform skew-x-12`}
-        style={{ color: tier.accent }}
+        className={`${config.text} font-bold tracking-tight tabular-nums ${config.px}`}
+        style={{ 
+          transform: "skewX(12deg)",
+          color: tier.accent,
+          fontFamily: "'Teko', 'Barlow Condensed', 'Oswald', sans-serif",
+          letterSpacing: "0.02em"
+        }}
       >
         {tier.upperLabel}
       </span>
@@ -171,7 +185,7 @@ export function RankSelector({ value, onChange, source }: RankSelectorProps) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-400 mb-3">Select Rank</label>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         {TIER_ORDER.map((tierKey) => {
           const tier = RANK_TIERS[tierKey];
           const isSelected = value === tier.value;
@@ -181,33 +195,40 @@ export function RankSelector({ value, onChange, source }: RankSelectorProps) {
               key={tierKey}
               type="button"
               onClick={() => onChange(tier.value)}
-              className={`group relative flex items-center h-12 transform -skew-x-12 overflow-hidden transition-all duration-200 ${
+              className={`relative flex items-center h-10 transition-all duration-200 ${
                 isSelected 
-                  ? "ring-2 ring-white/50 shadow-lg scale-105" 
-                  : "opacity-60 hover:opacity-100 hover:scale-102"
+                  ? "ring-2 ring-white/60 scale-105 z-10" 
+                  : "opacity-50 hover:opacity-100 hover:scale-105"
               }`}
               style={{ 
-                backgroundColor: isSelected ? tier.bg : `${tier.bg}80`,
+                transform: `skewX(-12deg) ${isSelected ? "scale(1.05)" : ""}`,
+                backgroundColor: tier.bg,
+                boxShadow: isSelected 
+                  ? `inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.4)`
+                  : `inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.2)`
               }}
             >
-              {/* Double stripe accent */}
-              <div className="flex gap-0.5 h-full py-1.5 pl-1.5">
+              {/* Double stripe accent on left edge */}
+              <div className="flex gap-[2px] pl-2 pr-1">
                 <div 
-                  className="w-1 h-full rounded-sm transition-all"
-                  style={{ backgroundColor: tier.accent, opacity: isSelected ? 1 : 0.5 }} 
+                  className="w-[3px] h-6 rounded-[1px]"
+                  style={{ backgroundColor: tier.accent }}
                 />
                 <div 
-                  className="w-1 h-full rounded-sm transition-all"
-                  style={{ backgroundColor: tier.accent, opacity: isSelected ? 1 : 0.5 }} 
+                  className="w-[3px] h-6 rounded-[1px]"
+                  style={{ backgroundColor: tier.accent }}
                 />
               </div>
-              
-              {/* Range label - counter-skewed */}
+              {/* Counter-skew text */}
               <span 
-                className="px-3 text-sm font-bold tabular-nums transform skew-x-12 transition-all"
-                style={{ color: isSelected ? tier.accent : `${tier.accent}99` }}
+                className="text-xs font-bold tracking-tight tabular-nums px-2 whitespace-nowrap"
+                style={{ 
+                  transform: "skewX(12deg)",
+                  color: tier.accent,
+                  fontFamily: "'Teko', 'Barlow Condensed', 'Oswald', sans-serif"
+                }}
               >
-                {tier.label}
+                {tier.upperLabel}
               </span>
             </button>
           );

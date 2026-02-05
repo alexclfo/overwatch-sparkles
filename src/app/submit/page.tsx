@@ -26,9 +26,7 @@ import { RankSelector } from "@/components/ui/rank-badge";
 const CHEAT_TYPES = [
   { id: "wallhack", label: "Wallhack" },
   { id: "aimbot", label: "Aimbot" },
-  { id: "spinbot", label: "Spinbot" },
   { id: "external", label: "External Assist" },
-  { id: "griefing", label: "Griefing" },
 ];
 
 // Slide animation variants
@@ -103,7 +101,7 @@ export default function SubmitPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<DemoPlayer | null>(null);
   const [manualSteamUrl, setManualSteamUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [startTick, setStartTick] = useState("");
+  const [mustCheckRounds, setMustCheckRounds] = useState<number[]>([]);
   const [suspicionReason, setSuspicionReason] = useState("");
   const [cheatTypes, setCheatTypes] = useState<string[]>([]);
   const [slideDirection, setSlideDirection] = useState(1);
@@ -259,7 +257,7 @@ export default function SubmitPage() {
           suspected_steamid64: selectedPlayer?.steamId64 || null,
           suspected_profile_url: manualSteamUrl || null,
           spectate_player: selectedPlayer?.name || manualSteamUrl,
-          start_tick_or_round: startTick || null,
+          must_check_rounds: mustCheckRounds,
           suspicion_reason: suspicionReason,
         }),
       });
@@ -288,7 +286,7 @@ export default function SubmitPage() {
     setSelectedPlayer(null);
     setManualSteamUrl("");
     setShowManualEntry(false);
-    setStartTick("");
+    setMustCheckRounds([]);
     setSuspicionReason("");
     setCheatTypes([]);
     setError(null);
@@ -391,7 +389,7 @@ export default function SubmitPage() {
         </div>
       </div>
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-hidden">
         {/* Error Display */}
         {error && (
           <div className="flex items-center gap-3 p-4 mb-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400">
@@ -400,9 +398,19 @@ export default function SubmitPage() {
           </div>
         )}
 
+        <AnimatePresence mode="wait" custom={slideDirection}>
         {/* Step 1: Upload */}
         {step === "upload" && (
-          <div className="space-y-6">
+          <motion.div
+            key="upload"
+            custom={slideDirection}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="space-y-6"
+          >
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-white mb-2">Upload Demo File</h1>
               <p className="text-gray-400">Select your CS2 or Faceit demo file</p>
@@ -497,12 +505,21 @@ export default function SubmitPage() {
                 </>
               )}
             </button>
-          </div>
+          </motion.div>
         )}
 
         {/* Step 2: Inspect / Select Suspect */}
         {step === "inspect" && (
-          <div className="space-y-6">
+          <motion.div
+            key="inspect"
+            custom={slideDirection}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="space-y-6"
+          >
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-white mb-2">Select Suspect</h1>
               <p className="text-gray-400">Choose the player you want to report</p>
@@ -557,7 +574,7 @@ export default function SubmitPage() {
                             <p className="font-medium text-white truncate">{player.name}</p>
                             <div className="flex items-center gap-2 text-xs text-gray-500">
                               <span className={player.team === "CT" ? "text-blue-400" : "text-orange-400"}>
-                                {player.team}
+                                {player.team === "CT" ? "Team 1" : "Team 2"}
                               </span>
                               {player.kills !== undefined && player.deaths !== undefined && (
                                 <>
@@ -632,12 +649,21 @@ export default function SubmitPage() {
                 </button>
               </>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Step 3: Final Details */}
         {step === "details" && (
-          <div className="space-y-6">
+          <motion.div
+            key="details"
+            custom={slideDirection}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="space-y-6"
+          >
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-white mb-2">Final Details</h1>
               <p className="text-gray-400">Add context for the review</p>
@@ -676,7 +702,7 @@ export default function SubmitPage() {
               />
             </div>
 
-            {/* Suspected Cheat Types - Pill selection */}
+            {/* Suspected Cheat Types - Pill selection with scale animation */}
             <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-5">
               <label className="block text-sm font-medium text-gray-400 mb-3">
                 Suspected Cheat Type
@@ -687,10 +713,10 @@ export default function SubmitPage() {
                     key={cheat.id}
                     type="button"
                     onClick={() => toggleCheatType(cheat.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-150 active:scale-95 ${
                       cheatTypes.includes(cheat.id)
-                        ? "bg-orange-500/20 border-orange-500/50 text-orange-400 border"
-                        : "bg-gray-800/50 border-gray-700 text-gray-400 border hover:border-gray-600"
+                        ? "bg-orange-500 text-white border border-orange-400 shadow-lg shadow-orange-500/20"
+                        : "bg-gray-800/50 border-gray-700 text-gray-400 border hover:border-gray-600 hover:text-white"
                     }`}
                   >
                     {cheat.label}
@@ -699,19 +725,44 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Suspicion Start - Simple input instead of grid */}
+            {/* Rounds to Check - Multi-select grid 1-30 */}
             <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-5">
-              <label className="block text-sm font-medium text-gray-400 mb-3">
-                When does the cheating start?
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Rounds to Check
               </label>
-              <input
-                type="text"
-                value={startTick}
-                onChange={(e) => setStartTick(e.target.value)}
-                placeholder="e.g. Round 15 or Tick 12000"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-              />
-              <p className="text-xs text-gray-600 mt-2">Optional - helps reviewers find the suspicious moments</p>
+              <p className="text-xs text-gray-500 mb-3">
+                Optional — Select rounds with suspicious activity
+              </p>
+              <div className="grid grid-cols-10 gap-1.5">
+                {Array.from({ length: 30 }, (_, i) => i + 1).map((round) => {
+                  const isSelected = mustCheckRounds.includes(round);
+                  return (
+                    <button
+                      key={round}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setMustCheckRounds(mustCheckRounds.filter(r => r !== round));
+                        } else {
+                          setMustCheckRounds([...mustCheckRounds, round].sort((a, b) => a - b));
+                        }
+                      }}
+                      className={`py-2 rounded text-sm font-medium transition-all ${
+                        isSelected
+                          ? "bg-orange-500 text-white"
+                          : "bg-gray-800/50 text-gray-400 hover:bg-gray-700 hover:text-white"
+                      }`}
+                    >
+                      {round}
+                    </button>
+                  );
+                })}
+              </div>
+              {mustCheckRounds.length > 0 && (
+                <p className="text-xs text-orange-400 mt-3">
+                  Selected: {mustCheckRounds.join(", ")}
+                </p>
+              )}
             </div>
 
             {/* Suspicion Reason */}
@@ -756,8 +807,9 @@ export default function SubmitPage() {
             >
               ← Back to suspect selection
             </button>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </main>
     </div>
   );

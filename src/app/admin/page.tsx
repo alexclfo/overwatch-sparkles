@@ -380,8 +380,13 @@ export default function AdminPage() {
                           <p className="text-xs text-gray-500 truncate">
                             {submission.suspected_steamid64 || "No Steam ID"}
                           </p>
-                          {/* Inventory value - color coded */}
-                          {submission.inventory_value_cents !== null && submission.inventory_value_cents > 0 && (() => {
+                          {/* Inventory value - color coded, or private indicator */}
+                          {submission.inventory_value_error?.toLowerCase().includes("private") ? (
+                            <div className="inline-flex items-center gap-1 mt-1 text-yellow-500">
+                              <span className="text-xs">🔒</span>
+                              <span className="text-xs font-medium">Private</span>
+                            </div>
+                          ) : submission.inventory_value_cents !== null && submission.inventory_value_cents > 0 ? (() => {
                             const invStyle = getInventoryStyle(submission.inventory_value_cents);
                             const isHighValue = submission.inventory_value_cents >= 100000;
                             return (
@@ -392,7 +397,7 @@ export default function AdminPage() {
                                 </span>
                               </div>
                             );
-                          })()}
+                          })() : null}
                         </div>
                       </div>
                       

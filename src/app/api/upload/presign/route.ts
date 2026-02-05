@@ -8,6 +8,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
 
 const MAX_ACTIVE_SUBMISSIONS = 3;
+const COOLDOWN_SECONDS = 20;
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,29 +33,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check per-user quota (only count finalized submissions)
-    const { count, error: countError } = await supabaseAdmin
-      .from("submissions")
-      .select("*", { count: "exact", head: true })
-      .eq("submitter_steamid64", session.user.steamId)
-      .in("status", ["new"])
-      .not("submitted_at", "is", null);
+    // Check if user is admin/moderator - they bypass rate limits
+    const { data: roleData } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("steamid64", session.user.steamId)
+      .single();
 
-    if (countError) {
-      console.error("Error checking quota:", countError);
-      return NextResponse.json(
-        { error: "Failed to check submission quota" },
-        { status: 500 }
-      );
-    }
+    const isAdminOrMod = roleData?.role === "sparkles" || roleData?.role === "moderator";
 
-    if ((count || 0) >= MAX_ACTIVE_SUBMISSIONS) {
-      return NextResponse.json(
-        {
-          error: `You have ${MAX_ACTIVE_SUBMISSIONS} active submissions. Please wait for them to be reviewed.`,
-        },
-        { status: 429 }
-      );
+    // Skip rate limiting for admins/moderators
+    if (!isAdminOrMod) {
+      // Check cooldown - last submission must be at least 20 seconds ago
+      const cooldownTime = new Date(Date.now() - COOLDOWN_SECONDS * 1000).toISOString();
+      const { data: recentSubmission } = await supabaseAdmin
+        .from("submissions")
+        .select("submitted_at")
+        .eq("submitter_steamid64", session.user.steamId)
+        .gt("submitted_at", cooldownTime)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (recentSubmission) {
+        const lastSubmitTime = new Date(recentSubmission.submitted_at).getTime();
+        const waitSeconds = Math.ceil((lastSubmitTime + COOLDOWN_SECONDS * 1000 - Date.now()) / 1000);
+        return NextResponse.json(
+          {
+            error: `Easy there, detective! 🕵️ Please wait ${waitSeconds} seconds before submitting another report.`,
+            cooldown: true,
+            waitSeconds,
+          },
+          { status: 429 }
+        );
+      }
+
+      // Check per-user quota (only count finalized submissions)
+      const { count, error: countError } = await supabaseAdmin
+        .from("submissions")
+        .select("*", { count: "exact", head: true })
+        .eq("submitter_steamid64", session.user.steamId)
+        .in("status", ["new"])
+        .not("submitted_at", "is", null);
+
+      if (countError) {
+        console.error("Error checking quota:", countError);
+        return NextResponse.json(
+          { error: "Failed to check submission quota" },
+          { status: 500 }
+        );
+      }
+
+      if ((count || 0) >= MAX_ACTIVE_SUBMISSIONS) {
+        return NextResponse.json(
+          {
+            error: `You've hit the limit! 📋 You have ${MAX_ACTIVE_SUBMISSIONS} active submissions pending review. Hang tight while we process them.`,
+            quota: true,
+            activeCount: count,
+          },
+          { status: 429 }
+        );
+      }
     }
 
     // Generate submission ID and object key (NO DB insert here - done in finalize)

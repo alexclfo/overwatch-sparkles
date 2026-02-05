@@ -13,7 +13,6 @@ interface PlayerStats {
   headshots: number;
   hsPercent: number;
   kd: number;
-  adr?: number;
 }
 
 interface RoundInfo {
@@ -139,19 +138,18 @@ export function MatchSummary({ submissionId, suspectSteamId }: MatchSummaryProps
 
           {/* Scoreboard - CS2 Style Table */}
           <div className="border-t border-white/5">
-            {/* Team 1 (CT) */}
-            <div className="bg-blue-500/5">
+            {/* Team 1 - Dark blue header */}
+            <div>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-blue-500/20">
-                    <th className="px-4 py-2 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">Team 1</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">K / A / D</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">+/-</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">HS%</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">ADR</th>
+                  <tr className="bg-[#0c1829] border-b-2 border-blue-500/50">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">Team 1</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">K / A / D</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">+/-</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">HS%</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-[#0c1829]/30">
                   {ctPlayers.map((player) => (
                     <ScoreboardRow 
                       key={player.steamId64} 
@@ -163,19 +161,18 @@ export function MatchSummary({ submissionId, suspectSteamId }: MatchSummaryProps
               </table>
             </div>
 
-            {/* Team 2 (T) */}
-            <div className="bg-orange-500/5">
+            {/* Team 2 - Dark brown/orange header */}
+            <div>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-orange-500/20">
-                    <th className="px-4 py-2 text-left text-xs font-medium text-orange-400 uppercase tracking-wider">Team 2</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">K / A / D</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">+/-</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">HS%</th>
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">ADR</th>
+                  <tr className="bg-[#241c0e] border-b-2 border-orange-500/50">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-orange-400 uppercase tracking-wider">Team 2</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">K / A / D</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">+/-</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">HS%</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-[#241c0e]/30">
                   {tPlayers.map((player) => (
                     <ScoreboardRow 
                       key={player.steamId64} 
@@ -207,31 +204,28 @@ function ScoreboardRow({
     <tr 
       className={`border-b border-white/5 ${
         isSuspect 
-          ? "bg-red-500/10 border-l-4 border-l-red-500" 
+          ? "bg-red-500/10 border-l-[4px] border-l-red-500" 
           : ""
       }`}
     >
       <td className="px-4 py-2">
-        <span className={`font-medium ${isSuspect ? "text-red-400" : "text-white"}`}>
+        <span className={`${isSuspect ? "font-bold text-red-400" : "font-medium text-white"}`}>
           {player.name}
           {isSuspect && <span className="ml-2 text-xs text-red-400/70">(Suspect)</span>}
         </span>
       </td>
-      <td className="px-2 py-2 text-center font-mono text-sm tabular-nums">
+      <td className="px-2 py-2 text-center font-mono text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
         <span className="text-white">{player.kills}</span>
         <span className="text-gray-600 mx-1">/</span>
         <span className="text-gray-400">{player.assists}</span>
         <span className="text-gray-600 mx-1">/</span>
         <span className="text-gray-400">{player.deaths}</span>
       </td>
-      <td className={`px-2 py-2 text-center font-mono text-sm tabular-nums font-medium ${plusMinusColor}`}>
+      <td className={`px-2 py-2 text-center font-mono text-sm font-medium ${plusMinusColor}`} style={{ fontVariantNumeric: 'tabular-nums' }}>
         {plusMinus > 0 ? "+" : ""}{plusMinus}
       </td>
-      <td className="px-2 py-2 text-center font-mono text-sm tabular-nums text-gray-400">
+      <td className="px-2 py-2 text-center font-mono text-sm text-gray-400" style={{ fontVariantNumeric: 'tabular-nums' }}>
         {player.hsPercent}%
-      </td>
-      <td className="px-2 py-2 text-center font-mono text-sm tabular-nums text-gray-400">
-        {player.adr || 0}
       </td>
     </tr>
   );

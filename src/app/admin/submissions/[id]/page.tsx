@@ -95,11 +95,26 @@ export default function SubmissionDetailPage() {
   const fetchSubmission = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/submissions/${submissionId}`);
+      if (res.status === 404) {
+        // Submission not found - redirect to admin
+        router.push("/admin");
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setSubmission(data.submission);
         setVerdict(data.submission.verdict || "none");
         setAdminNotes(data.submission.admin_notes || "");
+        
+        // Load stored top items from database
+        if (data.submission.inventory_top_items) {
+          setTopItems(data.submission.inventory_top_items);
+        }
+        
+        // Show inventory error if exists (e.g., "private")
+        if (data.submission.inventory_value_error) {
+          setInventoryMessage(data.submission.inventory_value_error);
+        }
         
         // Fetch ban info and FACEIT info if we have a Steam ID
         if (data.submission.suspected_steamid64) {
@@ -112,7 +127,7 @@ export default function SubmissionDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [submissionId]);
+  }, [submissionId, router]);
 
   const fetchBanInfo = async (steamId64: string) => {
     try {
@@ -156,6 +171,37 @@ export default function SubmissionDetailPage() {
       fetchSubmission();
     }
   }, [isAdmin, submissionId, fetchSubmission]);
+
+  // Keyboard shortcuts for quick verdict selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case "1":
+          setVerdict("cheater");
+          handleSave("cheater");
+          break;
+        case "2":
+          setVerdict("clean");
+          handleSave("clean");
+          break;
+        case "3":
+          setVerdict("inconclusive");
+          handleSave("inconclusive");
+          break;
+        case "escape":
+          setShowDeleteConfirm(false);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [adminNotes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async (newVerdict?: SubmissionVerdict | "none") => {
     setSaving(true);
@@ -240,8 +286,34 @@ export default function SubmissionDetailPage() {
 
   if (authStatus === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      <div className="min-h-screen bg-[#0a0a0f]">
+        {/* Header - always show during loading */}
+        <nav className="border-b border-white/5 bg-[#0d0d14]/80 backdrop-blur-xl sticky top-0 z-50">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-14">
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm">Back</span>
+              </Link>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+                  <Crosshair className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <span className="font-bold text-white">SPARKLES</span>
+                  <span className="font-light text-gray-400 ml-1">OVERWATCH</span>
+                </div>
+              </div>
+              <div className="w-10" /> {/* Spacer */}
+            </div>
+          </div>
+        </nav>
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        </div>
       </div>
     );
   }
@@ -274,8 +346,8 @@ export default function SubmissionDetailPage() {
                 <span className="font-light text-gray-400 ml-1">OVERWATCH</span>
               </div>
             </div>
-            {/* Header actions - Refresh and Delete */}
-            <div className="flex items-center gap-2">
+            {/* Header actions - Refresh only */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={handleRefreshInventory}
                 disabled={refreshingInventory}
@@ -287,13 +359,6 @@ export default function SubmissionDetailPage() {
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                title="Delete Submission"
-              >
-                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -317,16 +382,21 @@ export default function SubmissionDetailPage() {
                   <Crosshair className="w-10 h-10 text-gray-600" />
                 </div>
               )}
-              {/* Inventory badge - color coded */}
+              {/* Inventory badge - color coded with glow for high value */}
               {submission.inventory_value_cents !== null && (
-                <div className={`absolute -bottom-2 -right-2 flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-lg shadow-lg ${
-                  submission.inventory_value_cents === 0 
-                    ? "bg-gray-700 text-gray-400" 
-                    : submission.inventory_value_cents >= 100000 
-                      ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/50" 
-                      : "bg-green-500 text-white"
-                }`}>
-                  <DollarSign className="w-3 h-3" />
+                <div 
+                  className={`absolute -bottom-2 -right-2 flex items-center gap-1 font-bold rounded-lg ${
+                    submission.inventory_value_cents === 0 
+                      ? "px-2 py-1 text-xs bg-gray-700 text-gray-400" 
+                      : submission.inventory_value_cents >= 100000 
+                        ? "px-3 py-1.5 text-sm bg-yellow-500/20 text-yellow-400 border border-yellow-500/50" 
+                        : "px-2 py-1 text-xs bg-green-500 text-white"
+                  }`}
+                  style={submission.inventory_value_cents >= 100000 ? {
+                    boxShadow: '0 0 15px rgba(250, 204, 21, 0.3), 0 0 30px rgba(250, 204, 21, 0.15)'
+                  } : {}}
+                >
+                  <DollarSign className={submission.inventory_value_cents >= 100000 ? "w-4 h-4" : "w-3 h-3"} />
                   {(submission.inventory_value_cents / 100).toLocaleString()}
                 </div>
               )}
@@ -394,15 +464,19 @@ export default function SubmissionDetailPage() {
               </div>
             </div>
 
-            {/* Inventory Refresh */}
+            {/* Inventory Fetch/Refresh */}
             <div className="text-right">
               <button
                 onClick={handleRefreshInventory}
                 disabled={refreshingInventory}
-                className="flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors ml-auto"
+                className={`flex items-center gap-2 text-sm transition-colors ml-auto ${
+                  submission.inventory_value_cents !== null 
+                    ? "text-gray-500 hover:text-white" 
+                    : "text-orange-400 hover:text-orange-300 font-medium"
+                }`}
               >
                 <RefreshCw className={`w-4 h-4 ${refreshingInventory ? "animate-spin" : ""}`} />
-                Refresh Inventory
+                {submission.inventory_value_cents !== null ? "Refresh Inventory" : "Get Inventory"}
               </button>
               {inventoryMessage && (
                 <p className={`text-xs mt-1 ${
@@ -461,7 +535,7 @@ export default function SubmissionDetailPage() {
           )}
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-6 items-start">
           {/* Left Column - Details */}
           <div className="lg:col-span-2 space-y-6">
             {/* Suspicion Reason */}
@@ -470,10 +544,16 @@ export default function SubmissionDetailPage() {
               <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">
                 {submission.suspicion_reason || "No reason provided"}
               </p>
-              {submission.start_tick_or_round && (
+              {submission.must_check_rounds && submission.must_check_rounds.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-white/5">
-                  <span className="text-sm text-gray-500">Start at: </span>
-                  <span className="text-sm text-white font-medium">Round {submission.start_tick_or_round}</span>
+                  <span className="text-sm text-gray-500">Rounds to check: </span>
+                  <span className="flex flex-wrap gap-1.5 mt-2">
+                    {submission.must_check_rounds.map((round) => (
+                      <span key={round} className="text-sm text-white font-medium bg-orange-500/20 px-2 py-0.5 rounded">
+                        {round}
+                      </span>
+                    ))}
+                  </span>
                 </div>
               )}
             </div>
@@ -523,15 +603,22 @@ export default function SubmissionDetailPage() {
               suspectSteamId={submission.suspected_steamid64}
             />
 
-            {/* Admin Notes - Auto-save */}
+            {/* Admin Notes - Auto-save with indicator */}
             <div className="bg-[#12121a] border border-white/5 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Notes</h2>
-                {notesSaved && (
-                  <span className="text-xs text-green-400 flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Saved
-                  </span>
-                )}
+                <div className="h-5">
+                  {saving && (
+                    <span className="text-xs text-gray-400 flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Saving...
+                    </span>
+                  )}
+                  {notesSaved && !saving && (
+                    <span className="text-xs text-green-400 flex items-center gap-1 transition-opacity duration-300">
+                      <Check className="w-3 h-3" /> Saved
+                    </span>
+                  )}
+                </div>
               </div>
               <textarea
                 value={adminNotes}
@@ -551,12 +638,12 @@ export default function SubmissionDetailPage() {
                 rows={3}
                 className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white resize-none"
               />
-              <p className="mt-2 text-xs text-gray-600">Auto-saves 1 second after you stop typing</p>
+              <p className="mt-2 text-xs text-gray-600">Auto-saves after you stop typing</p>
             </div>
           </div>
 
-          {/* Right Column - Verdict & Meta */}
-          <div className="space-y-6">
+          {/* Right Column - Verdict & Meta - Sticky for rapid review */}
+          <div className="space-y-6 lg:sticky lg:top-20 h-fit">
             {/* Verdict Buttons */}
             <div className="bg-[#12121a] border border-white/5 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
@@ -680,8 +767,17 @@ export default function SubmissionDetailPage() {
             </div>
 
 
+            {/* Delete Submission - Bottom of right column */}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-red-400 hover:text-white bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-red-500 rounded-xl transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Submission
+            </button>
+
             {/* ID */}
-            <div className="text-xs text-gray-600 font-mono break-all px-2">
+            <div className="text-xs text-gray-600 font-mono break-all px-2 text-center">
               {submission.id}
             </div>
           </div>

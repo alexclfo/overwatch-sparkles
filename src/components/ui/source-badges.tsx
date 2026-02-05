@@ -1,14 +1,14 @@
 "use client";
 
-// Premier rank tier colors - CS2 accurate with glassy effect
+// Premier rank tier colors - CS2 parallelogram style with accent/bg colors
 const PREMIER_TIERS = [
-  { min: 0, max: 4999, bg: "#b0b0b0", gradient: "from-gray-400 to-gray-500" },           // Grey
-  { min: 5000, max: 9999, bg: "#59c8e9", gradient: "from-cyan-400 to-cyan-500" },        // Light Blue
-  { min: 10000, max: 14999, bg: "#5976e9", gradient: "from-blue-500 to-blue-600" },      // Deep Blue
-  { min: 15000, max: 19999, bg: "#b259e9", gradient: "from-purple-500 to-purple-600" },  // Purple
-  { min: 20000, max: 24999, bg: "#e959b2", gradient: "from-pink-500 to-pink-600" },      // Pink
-  { min: 25000, max: 29999, bg: "#eb4b4b", gradient: "from-red-500 to-red-600" },        // Red
-  { min: 30000, max: 99999, bg: "#ffd700", gradient: "from-yellow-400 to-amber-500" },   // Gold
+  { min: 0, max: 4999, accent: "#9ca3af", bg: "#374151" },           // Grey
+  { min: 5000, max: 9999, accent: "#60a5fa", bg: "#1e3a8a" },        // Light Blue
+  { min: 10000, max: 14999, accent: "#3b82f6", bg: "#1d4ed8" },      // Blue
+  { min: 15000, max: 19999, accent: "#a855f7", bg: "#581c87" },      // Purple
+  { min: 20000, max: 24999, accent: "#e879f9", bg: "#86198f" },      // Pink
+  { min: 25000, max: 29999, accent: "#ef4444", bg: "#7f1d1d" },      // Red
+  { min: 30000, max: 99999, accent: "#facc15", bg: "#713f12" },      // Gold
 ];
 
 function getPremierTier(rating: number) {
@@ -52,7 +52,7 @@ interface PremierRankProps {
   className?: string;
 }
 
-// Premier: CS2-style badge with glassy effect
+// Premier: CS2-style parallelogram badge with double stripes
 export function PremierRank({ rating, size = "md", className = "" }: PremierRankProps) {
   if (!rating) return null;
   
@@ -62,16 +62,41 @@ export function PremierRank({ rating, size = "md", className = "" }: PremierRank
   const tier = getPremierTier(numRating);
   const isSmall = size === "sm";
   
+  const sizeConfig = {
+    sm: { height: "h-7", stripeH: "h-5", stripeW: "w-[3px]", text: "text-xs", px: "px-3" },
+    md: { height: "h-9", stripeH: "h-6", stripeW: "w-1", text: "text-sm", px: "px-4" },
+  };
+  const config = sizeConfig[size];
+  
   return (
     <div 
-      className={`inline-flex items-center justify-center rounded-md bg-gradient-to-b ${tier.gradient} ${isSmall ? "h-6 px-2" : "h-7 px-3"} ${className}`}
+      className={`inline-flex items-center ${config.height} relative ${className}`}
       style={{ 
-        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.3)`
+        transform: "skewX(-12deg)",
+        backgroundColor: tier.bg,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.3)`
       }}
     >
+      {/* Double stripe accent on left edge */}
+      <div className="flex gap-[2px] pl-2 pr-1">
+        <div 
+          className={`${config.stripeW} ${config.stripeH} rounded-[1px]`}
+          style={{ backgroundColor: tier.accent }}
+        />
+        <div 
+          className={`${config.stripeW} ${config.stripeH} rounded-[1px]`}
+          style={{ backgroundColor: tier.accent }}
+        />
+      </div>
+      {/* Counter-skew text so it's upright */}
       <span 
-        className={`font-bold tabular-nums tracking-tight text-white drop-shadow-sm ${isSmall ? "text-sm" : "text-base"}`}
-        style={{ fontFamily: "'Rajdhani', 'Oswald', sans-serif", textShadow: "0 1px 2px rgba(0,0,0,0.3)" }}
+        className={`${config.text} font-bold tracking-tight tabular-nums ${config.px}`}
+        style={{ 
+          transform: "skewX(12deg)",
+          color: tier.accent,
+          fontFamily: "'Teko', 'Barlow Condensed', 'Oswald', sans-serif",
+          letterSpacing: "0.02em"
+        }}
       >
         {numRating.toLocaleString()}
       </span>
