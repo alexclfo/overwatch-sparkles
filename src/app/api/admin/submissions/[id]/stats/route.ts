@@ -4,10 +4,6 @@ import { authOptions } from "@/lib/auth/options";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getR2Client, R2_BUCKET } from "@/lib/r2/client";
-import { execSync } from "child_process";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
 
 export async function GET(
   request: NextRequest,
@@ -47,50 +43,46 @@ export async function GET(
       return NextResponse.json({ error: "No demo file" }, { status: 400 });
     }
 
-    // Download demo file to temp
-    const tempDir = os.tmpdir();
-    const tempFile = path.join(tempDir, `demo-${id}.dem`);
+    // Download demo from R2
+    const command = new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: submission.demo_object_key,
+    });
 
-    try {
-      const command = new GetObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: submission.demo_object_key,
-      });
+    const response = await getR2Client().send(command);
+    const buffer = await response.Body?.transformToByteArray();
 
-      const response = await getR2Client().send(command);
-      const bodyBytes = await response.Body?.transformToByteArray();
-
-      if (!bodyBytes) {
-        return NextResponse.json({ error: "Failed to download demo" }, { status: 500 });
-      }
-
-      fs.writeFileSync(tempFile, Buffer.from(bodyBytes));
-
-      // Run parser script
-      const scriptPath = path.join(process.cwd(), "scripts", "parse-demo-stats.js");
-      const output = execSync(`node "${scriptPath}" "${tempFile}"`, {
-        encoding: "utf-8",
-        timeout: 60000, // 60 second timeout
-      });
-
-      const stats = JSON.parse(output);
-
-      // Cleanup temp file
-      fs.unlinkSync(tempFile);
-
-      return NextResponse.json({ stats });
-    } catch (parseError: any) {
-      // Cleanup temp file on error
-      if (fs.existsSync(tempFile)) {
-        fs.unlinkSync(tempFile);
-      }
-
-      console.error("Demo parse error:", parseError);
-      return NextResponse.json(
-        { error: parseError.message || "Failed to parse demo" },
-        { status: 500 }
-      );
+    if (!buffer) {
+      return NextResponse.json({ error: "Failed to download demo" }, { status: 500 });
     }
+
+    // Call Railway worker for stats parsing
+    const workerUrl = process.env.RAILWAY_WORKER_URL;
+    const workerSecret = process.env.RAILWAY_WORKER_SECRET;
+
+    if (!workerUrl) {
+      return NextResponse.json({ error: "Worker not configured" }, { status: 500 });
+    }
+
+    const workerRes = await fetch(`${workerUrl}/stats`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(workerSecret && { Authorization: `Bearer ${workerSecret}` }),
+      },
+      body: JSON.stringify({
+        demoBuffer: Buffer.from(buffer).toString("base64"),
+      }),
+    });
+
+    if (!workerRes.ok) {
+      const errorText = await workerRes.text();
+      console.error("Worker error:", errorText);
+      return NextResponse.json({ error: "Demo parse failed" }, { status: 500 });
+    }
+
+    const stats = await workerRes.json();
+    return NextResponse.json({ stats });
   } catch (error) {
     console.error("Stats API error:", error);
     return NextResponse.json(
