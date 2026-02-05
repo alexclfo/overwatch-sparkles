@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     const isAdminOrMod = roleData?.role === "sparkles" || roleData?.role === "moderator";
 
-    // Skip rate limiting for admins/moderators
+    // Admins skip cooldown but still have quota
     if (!isAdminOrMod) {
       // Check cooldown - last submission must be at least 20 seconds ago
       const cooldownTime = new Date(Date.now() - COOLDOWN_SECONDS * 1000).toISOString();
@@ -67,33 +67,33 @@ export async function POST(request: NextRequest) {
           { status: 429 }
         );
       }
+    }
 
-      // Check per-user quota (only count finalized submissions)
-      const { count, error: countError } = await supabaseAdmin
-        .from("submissions")
-        .select("*", { count: "exact", head: true })
-        .eq("submitter_steamid64", session.user.steamId)
-        .in("status", ["new"])
-        .not("submitted_at", "is", null);
+    // Check per-user quota (applies to everyone including admins)
+    const { count, error: countError } = await supabaseAdmin
+      .from("submissions")
+      .select("*", { count: "exact", head: true })
+      .eq("submitter_steamid64", session.user.steamId)
+      .in("status", ["new"])
+      .not("submitted_at", "is", null);
 
-      if (countError) {
-        console.error("Error checking quota:", countError);
-        return NextResponse.json(
-          { error: "Failed to check submission quota" },
-          { status: 500 }
-        );
-      }
+    if (countError) {
+      console.error("Error checking quota:", countError);
+      return NextResponse.json(
+        { error: "Failed to check submission quota" },
+        { status: 500 }
+      );
+    }
 
-      if ((count || 0) >= MAX_ACTIVE_SUBMISSIONS) {
-        return NextResponse.json(
-          {
-            error: `You've hit the limit! 📋 You have ${MAX_ACTIVE_SUBMISSIONS} active submissions pending review. Hang tight while we process them.`,
-            quota: true,
-            activeCount: count,
-          },
-          { status: 429 }
-        );
-      }
+    if ((count || 0) >= MAX_ACTIVE_SUBMISSIONS) {
+      return NextResponse.json(
+        {
+          error: `You've hit the limit! 📋 You have ${MAX_ACTIVE_SUBMISSIONS} active submissions pending review. Hang tight while we process them.`,
+          quota: true,
+          activeCount: count,
+        },
+        { status: 429 }
+      );
     }
 
     // Generate submission ID and object key (NO DB insert here - done in finalize)
