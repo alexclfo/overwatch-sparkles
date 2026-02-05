@@ -28,10 +28,10 @@ export async function GET(
 
     const { id } = await params;
 
-    // Get submission
+    // Get submission (including cached stats)
     const { data: submission, error } = await supabaseAdmin
       .from("submissions")
-      .select("demo_object_key, demo_original_filename")
+      .select("demo_object_key, demo_original_filename, match_stats")
       .eq("id", id)
       .single();
 
@@ -41,6 +41,11 @@ export async function GET(
 
     if (!submission.demo_object_key) {
       return NextResponse.json({ error: "No demo file" }, { status: 400 });
+    }
+
+    // Return cached stats if available
+    if (submission.match_stats) {
+      return NextResponse.json({ stats: submission.match_stats, cached: true });
     }
 
     // Download demo from R2
@@ -82,7 +87,17 @@ export async function GET(
     }
 
     const stats = await workerRes.json();
-    return NextResponse.json({ stats });
+
+    // Cache stats in database (fire and forget)
+    supabaseAdmin
+      .from("submissions")
+      .update({ match_stats: stats })
+      .eq("id", id)
+      .then(({ error: cacheError }) => {
+        if (cacheError) console.error("Failed to cache stats:", cacheError);
+      });
+
+    return NextResponse.json({ stats, cached: false });
   } catch (error) {
     console.error("Stats API error:", error);
     return NextResponse.json(
